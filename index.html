@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Digital Signature Pad</title>
+  <style>
+    canvas {
+      border: 2px solid black;
+      background-color: #fff;
+    }
+    button {
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Draw your signature</h2>
+  <canvas id="signatureCanvas" width="400" height="200"></canvas><br><br>
+
+  <button id="clearBtn">Clear</button>
+  <button id="signBtn">Sign</button>
+
+  <p id="result" style="font-weight: bold;"></p>
+
+  <script>
+    const canvas = document.getElementById("signatureCanvas");
+    const ctx = canvas.getContext("2d");
+    const resultEl = document.getElementById("result");
+
+    let isDrawing = false;
+
+    // Drawing setup
+    canvas.addEventListener("mousedown", () => isDrawing = true);
+    canvas.addEventListener("mouseup", () => {
+      isDrawing = false;
+      ctx.beginPath();
+    });
+    canvas.addEventListener("mousemove", draw);
+
+    function draw(event) {
+      if (!isDrawing) return;
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "black";
+
+      const rect = canvas.getBoundingClientRect();
+      ctx.lineTo(event.clientX - rect.left, event.clientY - rect.top);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(event.clientX - rect.left, event.clientY - rect.top);
+    }
+
+    function isCanvasBlank(canvas) {
+      const blank = document.createElement("canvas");
+      blank.width = canvas.width;
+      blank.height = canvas.height;
+      return canvas.toDataURL() === blank.toDataURL();
+    }
+
+    // Clear canvas
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      resultEl.textContent = "";
+    });
+
+    // Sign and verify
+    document.getElementById("signBtn").addEventListener("click", async () => {
+      if (isCanvasBlank(canvas)) {
+        resultEl.textContent = "⚠️ Please draw something before signing.";
+        resultEl.style.color = "orange";
+        return;
+      }
+
+      const dataUrl = canvas.toDataURL("image/png");
+
+      try {
+        const signRes = await fetch("/sign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageData: dataUrl })
+        });
+
+        if (!signRes.ok) throw new Error("Signing failed");
+        const signData = await signRes.json();
+        const signature = signData.signature;
+
+        console.log("🖼️ Image Base64 URL:", dataUrl);
+        console.log("🔏 Signature (Base64):", signature);
+
+        // Immediately verify
+        const verifyRes = await fetch("/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageData: dataUrl, signature })
+        });
+
+        if (!verifyRes.ok) throw new Error("Verification failed");
+        const verifyData = await verifyRes.json();
+
+        if (verifyData.isVerified) {
+          resultEl.textContent = "✅ Signature created and VERIFIED.";
+          resultEl.style.color = "green";
+        } else {
+          resultEl.textContent = "❌ Signature creation failed verification.";
+          resultEl.style.color = "red";
+        }
+
+      } catch (err) {
+        console.error("❌ Error:", err);
+        resultEl.textContent = "❌ Error during signing or verification.";
+        resultEl.style.color = "red";
+      }
+    });
+  </script>
+</body>
+</html>
