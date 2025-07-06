@@ -19,6 +19,7 @@
 
   <button id="clearBtn">Clear</button>
   <button id="signBtn">Sign</button>
+  <button id="verifyBtn">Verify</button>
 
   <p id="result" style="font-weight: bold;"></p>
 
@@ -28,8 +29,8 @@
     const resultEl = document.getElementById("result");
 
     let isDrawing = false;
+    let savedSignature = null;
 
-    // Drawing setup
     canvas.addEventListener("mousedown", () => isDrawing = true);
     canvas.addEventListener("mouseup", () => {
       isDrawing = false;
@@ -57,13 +58,11 @@
       return canvas.toDataURL() === blank.toDataURL();
     }
 
-    // Clear canvas
     document.getElementById("clearBtn").addEventListener("click", () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       resultEl.textContent = "";
     });
 
-    // Sign and verify
     document.getElementById("signBtn").addEventListener("click", async () => {
       if (isCanvasBlank(canvas)) {
         resultEl.textContent = "⚠️ Please draw something before signing.";
@@ -71,45 +70,65 @@
         return;
       }
 
-      const dataUrl = canvas.toDataURL("image/png");
+      const imageData = canvas.toDataURL("image/png");
 
       try {
-        const signRes = await fetch("/sign", {
+        const res = await fetch("/sign", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageData: dataUrl })
+          body: JSON.stringify({ imageData })
         });
 
-        if (!signRes.ok) throw new Error("Signing failed");
-        const signData = await signRes.json();
-        const signature = signData.signature;
+        if (!res.ok) throw new Error("Signing failed");
 
-        console.log("🖼️ Image Base64 URL:", dataUrl);
-        console.log("🔏 Signature (Base64):", signature);
+        const data = await res.json();
+        savedSignature = data.signature;
 
-        // Immediately verify
-        const verifyRes = await fetch("/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageData: dataUrl, signature })
-        });
+        resultEl.textContent = "✅ Signature created and saved. Now click Verify.";
+        resultEl.style.color = "green";
 
-        if (!verifyRes.ok) throw new Error("Verification failed");
-        const verifyData = await verifyRes.json();
-
-        if (verifyData.isVerified) {
-          resultEl.textContent = "✅ Signature created and VERIFIED.";
-          resultEl.style.color = "green";
-        } else {
-          resultEl.textContent = "❌ Signature creation failed verification.";
-          resultEl.style.color = "red";
-        }
-
+        console.log("🖼️ Image:", imageData);
+        console.log("🔏 Signature:", savedSignature);
       } catch (err) {
-        console.error("❌ Error:", err);
-        resultEl.textContent = "❌ Error during signing or verification.";
+        resultEl.textContent = "❌ Error during signing.";
         resultEl.style.color = "red";
+        console.error(err);
       }
+    });
+
+    document.getElementById("verifyBtn").addEventListener("click", async () => {
+      if (!savedSignature) {
+        resultEl.textContent = "⚠️ No signature to verify against. Please sign first.";
+        resultEl.style.color = "orange";
+        return;
+      }
+
+      const imageData = canvas.toDataURL("image/png");
+
+      try {
+        const res = await fetch("/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageData, signature: savedSignature })
+        });
+
+        if (!res.ok) throw new Error("Verification failed");
+
+          const data = await res.json();
+    if (data.isVerified) {
+      resultEl.textContent = "✅ Drawing is VERIFIED.";
+      resultEl.style.color = "green";
+      console.log("✅ Drawing verification SUCCESSFUL.");
+    } else {
+      resultEl.textContent = "❌ Drawing does NOT match the original signature.";
+      resultEl.style.color = "red";
+      console.log("❌ Drawing verification FAILED.");
+    }
+  } catch (err) {
+    resultEl.textContent = "❌ Error during verification.";
+    resultEl.style.color = "red";
+    console.error(err);
+  }
     });
   </script>
 </body>
