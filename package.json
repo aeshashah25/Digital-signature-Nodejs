@@ -1,6 +1,17 @@
 {
   "dependencies": {
     "express": "^5.1.0",
+    "serialport": "^13.0.0",
     "uuid": "^11.1.0"
-  }
+  },
+  "name": "digital_signature",
+  "version": "1.0.0",
+  "description": "Developing digital signature using nodejs -  ublickey,private key, rsa,sha-56 used forsendingand verifying.",
+  "main": "comport.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
