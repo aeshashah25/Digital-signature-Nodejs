@@ -130,6 +130,38 @@ app.listen(3000, () => {
 // | `signature`  | **Created by your server** | Validates data | ✅ Shared with the client         |
 
 
+// When a user is created (/new-user), a key pair is generated:
+
+// privateKey: Used internally by the server to sign data for that user
+
+// publicKey: Used by anyone to verify that a message was really signed by that user's private key
+
+// ✅ Where the public key is used
+// It's not used at the moment of signing — it's used later for verification.
+
+// 🔐 Here's how it flows:
+// User is created:
+
+// You get userId and publicKey
+
+// User signs something via /sign:
+
+// The server uses their private key to generate a signature based on input data.
+
+// You verify later via /verify:
+
+// The server uses that user's stored public key (from memory) to check if the signature matches the imageData.
+
+
+
+
+// | Item         | Who owns it                | Used for       | Shared?                          |
+// | ------------ | -------------------------- | -------------- | -------------------------------- |
+// | `privateKey` | **Your server**            | Signing        | ❌ Never shared                   |
+// | `publicKey`  | **Also from your server**  | Verification   | ✅ Yes, exposed via `/public-key` |
+// | `signature`  | **Created by your server** | Validates data | ✅ Shared with the client         |
+
+
 // Public Key → shared with everyone, used to verify signatures.
 
 // Private Key → kept secret, used to sign data.
