@@ -1,47 +1,70 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const path = require("path");
 const crypto = require("crypto");
+const { v4: uuidv4 } = require("uuid");
 
 const app = express();
-app.use(bodyParser.json({ limit: '5mb' }));
+app.use(bodyParser.json({ limit: "5mb" }));
 
-// Serve index.html file
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+// In-memory store (replace with database in production)
+const userKeys = {}; // { userId: { publicKey, privateKey } }
+
+// Create a new user with their own key pair
+app.post("/new-user", (req, res) => {
+  const userId = uuidv4(); // generate a unique ID
+
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "pkcs1", format: "pem" },
+    privateKeyEncoding: { type: "pkcs1", format: "pem" },
+  });
+
+  userKeys[userId] = { publicKey, privateKey };
+
+  res.json({
+    userId,
+    publicKey, // return only the public key to client
+  });
 });
 
-// Generate key pair
-const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
-  modulusLength: 2048,
-});
-
-// POST route for signature
+// Sign data for a specific user
 app.post("/sign", (req, res) => {
-  try {
-    const base64Image = req.body.imageData;
-    if (!base64Image) return res.status(400).json({ error: "No image data provided" });
+  const { userId, imageData } = req.body;
 
-    const dataBuffer = Buffer.from(base64Image, "utf-8");
+  if (!userId || !imageData)
+    return res.status(400).json({ error: "userId and imageData are required" });
+
+  const keys = userKeys[userId];
+  if (!keys)
+    return res.status(404).json({ error: "User not found" });
+
+  try {
+    const dataBuffer = Buffer.from(imageData, "utf-8");
 
     const signature = crypto.sign("sha256", dataBuffer, {
-      key: privateKey,
+      key: keys.privateKey,
       padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
     });
 
     res.json({ signature: signature.toString("base64") });
-  } catch (error) {
-    console.error("Error in /sign:", error);
+  } catch (err) {
+    console.error("Signing error:", err);
     res.status(500).json({ error: "Signing failed" });
   }
 });
-app.post("/verify", (req, res) => {
-  try {
-    const { imageData, signature } = req.body;
-    if (!imageData || !signature) {
-      return res.status(400).json({ error: "Image data or signature missing" });
-    }
 
+// Verify signature using user's public key
+app.post("/verify", (req, res) => {
+  const { userId, imageData, signature } = req.body;
+
+  if (!userId || !imageData || !signature)
+    return res.status(400).json({ error: "userId, imageData, and signature are required" });
+
+  const keys = userKeys[userId];
+  if (!keys)
+    return res.status(404).json({ error: "User not found" });
+
+  try {
     const dataBuffer = Buffer.from(imageData, "utf-8");
     const sigBuffer = Buffer.from(signature, "base64");
 
@@ -49,20 +72,51 @@ app.post("/verify", (req, res) => {
       "sha256",
       dataBuffer,
       {
-        key: publicKey,
+        key: keys.publicKey,
         padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
       },
       sigBuffer
     );
 
     res.json({ isVerified });
-  } catch (error) {
-    console.error("Error in /verify:", error);
+  } catch (err) {
+    console.error("Verification error:", err);
     res.status(500).json({ error: "Verification failed" });
   }
 });
 
-
 app.listen(3000, () => {
   console.log("Server running at http://localhost:3000");
 });
+
+
+// | Item         | Who owns it                | Used for       | Shared?                          |
+// | ------------ | -------------------------- | -------------- | -------------------------------- |
+// | `privateKey` | **Your server**            | Signing        | ❌ Never shared                   |
+// | `publicKey`  | **Also from your server**  | Verification   | ✅ Yes, exposed via `/public-key` |
+// | `signature`  | **Created by your server** | Validates data | ✅ Shared with the client         |
+
+
+// When a user is created (/new-user), a key pair is generated:
+
+// privateKey: Used internally by the server to sign data for that user
+
+// publicKey: Used by anyone to verify that a message was really signed by that user's private key
+
+// ✅ Where the public key is used
+// It's not used at the moment of signing — it's used later for verification.
+
+// 🔐 Here's how it flows:
+// User is created:
+
+// You get userId and publicKey
+
+// User signs something via /sign:
+
+// The server uses their private key to generate a signature based on input data.
+
+// You verify later via /verify:
+
+// The server uses that user's stored public key (from memory) to check if the signature matches the imageData.
+
+
