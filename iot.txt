@@ -1,0 +1,78 @@
+This code is designed to work with any IoT device that can send:
+
+JSON data over a serial port (like Arduino, ESP32, Raspberry Pi serial output) on the specified COM3 (you must update this to your actual port).
+
+The device should send valid JSON strings ending 
+
+JSON data via HTTP POST to http://localhost:3000/iotdata — so any device (or app) that can send HTTP POST with JSON can push data this way.
+
+QR code images uploaded via HTTP POST to /upload-qrcode — you send an image file, it decodes the QR and responds with the content.
+
+
+What you need to ensure:
+The serial port exists and your device is connected on that port.
+
+Your device sends properly formatted JSON strings over serial ending with \n.
+
+Your Node.js server and IoT device are on the same network if sending HTTP POST.
+npm install express multer jimp qrcode-reader serialport
+
+
+
+
+
+
+
+
+Open the Arduino IDE (or Arduino IDE 2.x).
+
+If you don’t have it, download from arduino.cc
+.
+
+Create a new sketch (File → New).
+
+Paste this code:
+
+void setup() {
+  Serial.begin(9600);  // Start serial communication at 9600 baud
+}
+
+void loop() {
+  // Send JSON string every 2 seconds
+  Serial.println("{\"temperature\":25.4,\"humidity\":55}");
+  delay(2000);
+}
+
+For Comport:
+Connect your Arduino (UNO, Nano, ESP32, etc.) to the PC with a USB cable.
+
+In Arduino IDE:
+
+Select the Board (Tools → Board → e.g. Arduino UNO).
+
+Select the Port (Tools → Port → usually COM3, matches your Node.js portName).
+
+Click the Upload button (right arrow) → it compiles and flashes the code to your Arduino.
+
+🔹 How to run
+
+After upload, the Arduino will continuously print JSON like this:
+
+{"temperature":25.4,"humidity":55}
+
+
+every 2 seconds to the serial port (COM3).
+
+Your Node.js server (with serialport) listens on COM3 at 9600 baud.
+It will receive this line, parse it as JSON, and log:
+
+Received IoT JSON from serial: { temperature: 25.4, humidity: 55 }
+
+🔹 Quick Test
+
+Before running Node.js, open Arduino Serial Monitor (Ctrl+Shift+M) → you should see:
+
+{"temperature":25.4,"humidity":55}
+
+
+repeating every 2 seconds. 
